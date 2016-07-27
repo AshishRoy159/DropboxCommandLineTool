@@ -4,13 +4,18 @@
 
 package command;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 
+import com.dropbox.core.DbxAppInfo;
+import com.dropbox.core.DbxAuthFinish;
 import com.dropbox.core.DbxException;
 import com.dropbox.core.DbxRequestConfig;
+import com.dropbox.core.DbxWebAuth;
 import com.dropbox.core.v2.DbxClientV2;
 import com.dropbox.core.v2.files.FileMetadata;
 import com.dropbox.core.v2.files.FolderMetadata;
@@ -28,7 +33,8 @@ import com.dropbox.core.v2.users.FullAccount;
  */
 public class Main {
 	
-	private static final String ACCESS_TOKEN = "qgRCszXpPxgAAAAAAAAAOhwDF7RiUTC42S5HSy6wume-yRfTshmjmQUJXeretYzY";
+	private static final String KEY = "io2sjsry3zfsh03";
+	private static final String SECRET = "mab7jdseaw0b7mw";
 	private static final String FILE = "file";
 	private static final String FOLDER = "folder";
 
@@ -58,9 +64,56 @@ public class Main {
 			return;
 		}
 
+		// initialize access token
+		String accessToken = null;
+		
+		// Create new dropbox app info object
+		DbxAppInfo appInfo = new DbxAppInfo(KEY, SECRET);
 		// Create Dropbox client
 		DbxRequestConfig config = new DbxRequestConfig("CommanTool/v1.0");
-		DbxClientV2 client = new DbxClientV2(config, ACCESS_TOKEN);
+		
+		DbxWebAuth auth = new DbxWebAuth(config, appInfo);
+		
+		// create wen authentication request
+		DbxWebAuth.Request webAuthRequest = DbxWebAuth.newRequestBuilder()
+	            .withNoRedirect()
+	            .build();
+
+	    String authorizeUrl = auth.authorize(webAuthRequest);
+	    
+	    // open browser to get authorization code
+	    BareBonesBrowserLaunch.openURL(authorizeUrl);
+	    
+	    // Print instruction to the user
+	    System.out.println("1. Go to your browser. If the authorization page is not open, Go Here" + authorizeUrl);
+        System.out.println("2. Click \"Allow\" (you might have to log in first).");
+        System.out.println("3. Copy the authorization code.");
+        System.out.print("Paste the authorization code here: ");
+
+        // Take authorization code input
+        String code = new BufferedReader(new InputStreamReader(System.in)).readLine();
+        if (code == null) {
+            System.exit(1); return;
+        }
+        code = code.trim();
+
+        DbxAuthFinish authFinish;
+        try {
+            authFinish = auth.finishFromCode(code);
+        } catch (DbxException ex) {
+            System.err.println("Error in DbxWebAuth.authorize: " + ex.getMessage());
+            System.exit(1); return;
+        }
+
+        // Get access Token
+        accessToken = authFinish.getAccessToken();
+        
+        System.out.println("Authorization complete.");
+        System.out.println("- User ID: " + authFinish.getUserId());
+        System.out.println("- Access Token: " + authFinish.getAccessToken());
+	    
+        // Create dropbox client object
+		DbxClientV2 client = new DbxClientV2(config, accessToken);
 
 		// Get current account info
 		FullAccount account = client.users().getCurrentAccount();
